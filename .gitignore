@@ -1,1 +1,5 @@
 /Debug
+/Release
+*.iobj
+*.ipdb
+*.pdb
