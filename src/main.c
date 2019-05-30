@@ -75,6 +75,7 @@ typedef enum
 /**************************************************************************************************
 *                                         LOCAL PROTOTYPES
 *************************************************^************************************************/
+static void print_table_task(buffer_t buffer, uint64_t buffer_size_bytes, data_type_t data_type, endian_t endian, uint32_t cols);
 static uint16_t ChangeEndianness_16(uint16_t value);
 static uint32_t ChangeEndianness_32(uint32_t value);
 static uint64_t ChangeEndianness_64(uint64_t value);
@@ -94,34 +95,16 @@ static uint64_t ChangeEndianness_64(uint64_t value);
 ******************************************************************************/
 int main(int argc, char *argv[])
 {
+	//argument variables
 	char *src_file_path;
 	endian_t endian;
 	uint32_t cols;
 	data_type_t data_type;
 
-	FILE * pFile;
-	long lSize;
-	size_t result;
+	FILE * file_ptr;
+	long file_size_bytes;
+	size_t buffer_read_size_bytes;
 	buffer_t buffer;
-
-	uint64_t buffer_ind;
-	uint64_t buffer_end;
-	uint32_t col_ind;
-
-	bit8_dat_t bit8_dat;
-	bit16_dat_t bit16_dat;
-	bit32_dat_t bit32_dat;
-	bit64_dat_t bit64_dat;
-
-	/*Determine endianness of your machine*/
-	unsigned int tmp_int = 1;
-	char *tmp_char_ptr = (char*)&tmp_int;
-	endian_t this_machine_endianess;
-
-	if(*tmp_char_ptr)
-		this_machine_endianess = LITTLE_ENDIAN;
-	else
-		this_machine_endianess = BIG_ENDIAN;
 
 #if DEBUGGING == 1
 	/*See arguments*/
@@ -187,20 +170,20 @@ int main(int argc, char *argv[])
 
 	}
 
-	fopen_s(&pFile, argv[1], "rb");
-	if(pFile == NULL)
+	fopen_s(&file_ptr, argv[1], "rb");
+	if(file_ptr == NULL)
 	{
 		fputs("File error", stderr);
 		exit(4);
 	}
 
 	// obtain file size:
-	fseek(pFile, 0, SEEK_END);
-	lSize = ftell(pFile);
-	rewind(pFile);
+	fseek(file_ptr, 0, SEEK_END);
+	file_size_bytes = ftell(file_ptr);
+	rewind(file_ptr);
 
 	// allocate memory to contain the whole file:
-	buffer._u8 = (uint8_t*)malloc(sizeof(uint8_t)*lSize);
+	buffer._u8 = (uint8_t*)malloc(sizeof(uint8_t)*file_size_bytes);
 	if(buffer._u8 == NULL)
 	{
 		fputs("Memory error", stderr);
@@ -208,54 +191,93 @@ int main(int argc, char *argv[])
 	}
 
 	// copy the file into the buffer:
-	result = fread(buffer._u8, 1, lSize, pFile);
-	if(result != lSize)
+	buffer_read_size_bytes = fread(buffer._u8, 1, file_size_bytes, file_ptr);
+	if(buffer_read_size_bytes != file_size_bytes)
 	{
 		fputs("Reading error", stderr);
 		exit(6);
 	}
 
 	/* the whole file is now loaded in the memory buffer. */
+	print_table_task(buffer, buffer_read_size_bytes, data_type, endian, cols);
+
+	// terminate
+	fclose(file_ptr);
+	free(buffer._u8);
+
+	return 0;
+}
+
+
+/**************************************************************************************************
+*                                         LOCAL FUNCTIONS
+*************************************************^************************************************/
+/******************************************************************************
+*  \brief Print table task
+*
+*  \note
+******************************************************************************/
+static void print_table_task(buffer_t buffer, uint64_t buffer_size_bytes, data_type_t data_type, endian_t endian, uint32_t cols)
+{
+	uint64_t buffer_ind;
+	uint64_t buffer_end;
+	uint32_t col_ind;
+
+	bit8_dat_t bit8_dat;
+	bit16_dat_t bit16_dat;
+	bit32_dat_t bit32_dat;
+	bit64_dat_t bit64_dat;
+
 	buffer_ind = 0;
 	col_ind = 0;
+
+	unsigned int tmp_int = 1;
+	char *tmp_char_ptr = (char*)&tmp_int;
+	endian_t this_machine_endianess;
+
+	/*Determine endianness of your machine*/
+	if(*tmp_char_ptr)
+		this_machine_endianess = LITTLE_ENDIAN;
+	else
+		this_machine_endianess = BIG_ENDIAN;
 
 	switch(data_type)
 	{
 	case UINT8:
-		buffer_end = lSize / sizeof(buffer._u8[0]);
+		buffer_end = buffer_size_bytes / sizeof(buffer._u8[0]);
 		break;
 	case INT8:
-		buffer_end = lSize / sizeof(buffer._8[0]);
+		buffer_end = buffer_size_bytes / sizeof(buffer._8[0]);
 		break;
 	case UINT16:
-		buffer_end = lSize / sizeof(buffer._u16[0]);
+		buffer_end = buffer_size_bytes / sizeof(buffer._u16[0]);
 		break;
 	case INT16:
-		buffer_end = lSize / sizeof(buffer._16[0]);
+		buffer_end = buffer_size_bytes / sizeof(buffer._16[0]);
 		break;
 	case UINT32:
-		buffer_end = lSize / sizeof(buffer._u32[0]);
+		buffer_end = buffer_size_bytes / sizeof(buffer._u32[0]);
 		break;
 	case INT32:
-		buffer_end = lSize / sizeof(buffer._32[0]);
+		buffer_end = buffer_size_bytes / sizeof(buffer._32[0]);
 		break;
 	case UINT64:
-		buffer_end = lSize / sizeof(buffer._u64[0]);
+		buffer_end = buffer_size_bytes / sizeof(buffer._u64[0]);
 		break;
 	case INT64:
-		buffer_end = lSize / sizeof(buffer._64[0]);
+		buffer_end = buffer_size_bytes / sizeof(buffer._64[0]);
 		break;
 	case FLOAT:
-		buffer_end = lSize / sizeof(buffer._fl[0]);
+		buffer_end = buffer_size_bytes / sizeof(buffer._fl[0]);
 		break;
 	case DOUBLE:
-		buffer_end = lSize / sizeof(buffer._db[0]);
+		buffer_end = buffer_size_bytes / sizeof(buffer._db[0]);
 		break;
 	}
 
 	while(buffer_ind < buffer_end)
 	{
-		bit8_dat._uint  = buffer._u8[buffer_ind];
+		bit8_dat._uint = buffer._u8[buffer_ind];
 		bit16_dat._uint = buffer._u16[buffer_ind];
 		bit32_dat._uint = buffer._u32[buffer_ind];
 		bit64_dat._uint = buffer._u64[buffer_ind];
@@ -307,26 +329,16 @@ int main(int argc, char *argv[])
 		if(col_ind >= cols)
 		{
 			col_ind = 0;
-			printf("\r\n");
+			printf("\n");
 		}
 		buffer_ind++;
 	}
 
-	printf("\r\n");
-
-	// terminate
-	fclose(pFile);
-	free(buffer._u8);
-
-	return 0;
+	printf("\n");
 }
 
-
-/**************************************************************************************************
-*                                         LOCAL FUNCTIONS
-*************************************************^************************************************/
 /******************************************************************************
-*  \brief
+*  \brief ChangeEndianness_16
 *
 *  \note
 ******************************************************************************/
@@ -339,7 +351,7 @@ static uint16_t ChangeEndianness_16(uint16_t value)
 }
 
 /******************************************************************************
-*  \brief 
+*  \brief ChangeEndianness_32
 *
 *  \note
 ******************************************************************************/
@@ -354,7 +366,7 @@ static uint32_t ChangeEndianness_32(uint32_t value)
 }
 
 /******************************************************************************
-*  \brief
+*  \brief ChangeEndianness_64
 *
 *  \note
 ******************************************************************************/
